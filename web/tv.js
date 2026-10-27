@@ -266,7 +266,13 @@ var TV = (function () {
     return {id: a.id, title: SAMSUNG_TITLES[a.id] || a.name || a.id, icon: icon, color: ''};
   }
 
+  // Samsung: the Home button can't be caught, so the app brings itself back (bringBack) unless it was the one that left:
+  // another app opened, the TV's settings or an input shown, or Back on the first screen.
+  var leavingUntil = 0;
+  function leaving() { leavingUntil = Date.now() + 10000; }
+
   function samsungLaunch(id, done) {
+    if (id !== self) leaving();
     try {
       window.tizen.application.launch(id, function () { if (done) done(true); }, function () { if (done) done(false); });
     } catch (e) {
@@ -333,6 +339,7 @@ var TV = (function () {
   /** Samsung's settings: whichever app answers the platform's "settings" request, else the TV's menu (Tizen 3). */
   function samsungSettings(done) {
     function menu() { samsungLaunch(SAMSUNG_MENU, done); }
+    leaving();
     try {
       var control = new window.tizen.ApplicationControl('http://tizen.org/appcontrol/operation/setting', null, null, null, []);
       window.tizen.application.launchAppControl(control, null, function () { if (done) done(true); }, menu);
@@ -528,9 +535,16 @@ var TV = (function () {
     /** LG: keeps the TV's screensaver away while ours will take over (`hold` says when). */
     holdScreenSaver: holdScreenSaver,
 
+    /** Samsung: the app went to the background without meaning to (the Home button): open it again. */
+    bringBack: function () {
+      if (!samsung || Date.now() < leavingUntil) return;
+      samsungLaunch(self);
+    },
+
     /** Back on the first screen: back to wherever the person came from. */
     back: function () {
       if (samsung) {
+        leaving();
         try { window.tizen.application.getCurrentApplication().hide(); } catch (e) {}
         return;
       }
